@@ -11,7 +11,10 @@
   "license": "ISC",
   "packageManager": "pnpm@10.28.2",
   "dependencies": {
+    "@material-design-icons/font": "^0.14.15",
+    "@material-symbols/svg-400": "^0.40.2",
     "material-icons": "^1.13.14",
+    "material-symbols": "^0.40.2",
     "three": "^0.182.0"
   },
   "devDependencies": {

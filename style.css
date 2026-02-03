@@ -34,7 +34,12 @@ button:hover {
 button .material-icons {
     font-size: 24px;
     vertical-align: middle;
-    pointer-events: none; /* ensures click passes to button */
+    pointer-events: none;
+}
+
+/* Active button visual */
+button.active {
+    opacity: 0.6;
 }
 
 #movieTitle {
