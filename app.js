@@ -6,7 +6,9 @@ import DeleteIcon from "@material-symbols/svg-400/outlined/delete.svg";
 import FillIcon from "@material-symbols/svg-400/outlined/format_color_fill.svg";
 import PaletteIcon from "@material-symbols/svg-400/outlined/palette.svg";
 
-const API_KEY = "eaca5351";
+// Replace with your TMDb API key
+const TMDB_API_KEY = "923ba34a720eb4f615326820215f419d";
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/original";
 
 const container = document.getElementById("canvasContainer");
 const movieTitleEl = document.getElementById("movieTitle");
@@ -159,39 +161,44 @@ movieInput.addEventListener("keydown", (e) => {
   if (e.key === "Escape") dialog.style.display = "none";
 });
 
-/* ===== OMDb fetch ===== */
-function numericToImdb(n) {
-  return "tt" + String(n).padStart(7, "0");
-}
-
+/* ===== TMDb fetch ===== */
 async function fetchMovieById(id) {
-  const imdb = numericToImdb(id);
   movieTitleEl.textContent = "Loading…";
+
   try {
     const res = await fetch(
-      `https://www.omdbapi.com/?i=${imdb}&apikey=${API_KEY}`,
+      `https://api.themoviedb.org/3/movie/${id}?api_key=${TMDB_API_KEY}&language=en-US`,
     );
     const data = await res.json();
-    if (!data || data.Response === "False") {
+
+    if (!data || data.success === false) {
       movieTitleEl.textContent = "";
+      posterTexture = null;
+      posterMesh.visible = false;
+      posterVisible = false;
       return alert("Movie not found");
     }
-    movieTitleEl.textContent = `${data.Title} (${data.Year || ""})`;
-    if (!data.Poster || data.Poster === "N/A") {
+
+    movieTitleEl.textContent = `${data.title} (${data.release_date?.slice(0, 4) || ""})`;
+
+    if (!data.poster_path) {
       posterTexture = null;
       posterMesh.visible = false;
       posterVisible = false;
       return;
     }
+
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.src = data.Poster;
+    img.src = TMDB_IMAGE_BASE + data.poster_path;
+
     img.onload = () => {
       posterTexture = new THREE.Texture(img);
       posterTexture.needsUpdate = true;
       posterMesh.material.map = posterTexture;
       posterMesh.visible = posterVisible;
     };
+
     img.onerror = () => {
       posterTexture = null;
       posterMesh.visible = false;
