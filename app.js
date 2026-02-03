@@ -280,40 +280,40 @@ movieInput.addEventListener("keydown", e=>{ if(e.key==="Enter") okBtn.click(); i
 
 /* ===== Poster scaling helper ===== */
 function setPosterTexture(img) {
-  const { cssWidth, cssHeight } = getCssSize();
+  // Use device-pixel size, not CSS size
+  const devW = drawCanvas.width;
+  const devH = drawCanvas.height;
   const tempCanvas = document.createElement("canvas");
-  tempCanvas.width = cssWidth;
-  tempCanvas.height = cssHeight;
+  tempCanvas.width = devW;
+  tempCanvas.height = devH;
   const ctx = tempCanvas.getContext("2d");
 
   // Compute aspect ratios
-  const canvasAspect = cssWidth / cssHeight;
+  const canvasAspect = devW / devH;
   const imgAspect = img.width / img.height;
 
   let drawW, drawH, offsetX = 0, offsetY = 0;
 
   if (imgAspect > canvasAspect) {
     // Poster wider than canvas: scale width to canvas, crop sides
-    drawW = cssWidth;
-    drawH = cssWidth / imgAspect;
-    offsetY = (cssHeight - drawH) / 2;
+    drawW = devW;
+    drawH = devW / imgAspect;
+    offsetY = (devH - drawH) / 2;
   } else {
     // Poster taller than canvas: scale height to canvas, crop top/bottom
-    drawH = cssHeight;
-    drawW = cssHeight * imgAspect;
-    offsetX = (cssWidth - drawW) / 2;
+    drawH = devH;
+    drawW = devH * imgAspect;
+    offsetX = (devW - drawW) / 2;
   }
 
-  // Draw poster onto temporary canvas
   ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
 
-  // Use this canvas as Three.js texture
   if (!posterTexture) posterTexture = new THREE.Texture(tempCanvas);
   else posterTexture.image = tempCanvas;
   posterTexture.needsUpdate = true;
 
   posterMesh.material.map = posterTexture;
-  posterMesh.visible = posterMesh.visible || false;
+  posterMesh.visible = posterMesh.visible || true;
 }
 
 /* TMDb fetch */
