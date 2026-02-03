@@ -7,7 +7,7 @@ body {
     flex-direction: column;
     align-items: center;
     height: 100vh;
-    touch-action: none; /* prevents scroll gestures interfering */
+    touch-action: none; /* prevent scrolling while drawing */
 }
 
 #toolbar {
@@ -57,7 +57,7 @@ button.active {
     overflow: hidden;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
     background: white;
-    touch-action: none; /* prevents mobile gestures */
+    touch-action: none;
 }
 
 #dialog {

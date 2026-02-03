@@ -1,40 +1,37 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <title>Movie Sketch Pad</title>
-        <meta
-            name="viewport"
-            content="width=device-width, initial-scale=1, user-scalable=no"
+<head>
+    <meta charset="UTF-8" />
+    <title>Movie Sketch Pad</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+<div id="toolbar">
+    <button id="brushBtn" title="Brush"></button>
+    <button id="eraserBtn" title="Eraser"></button>
+    <button id="posterBtn" title="Toggle Poster"></button>
+    <button id="undoBtn" title="Undo"></button>
+    <button id="clearBtn" title="Clear Drawing"></button>
+    <button id="idBtn" title="Pick Movie ID"></button>
+</div>
+
+<div id="movieTitle"></div>
+<div id="canvasContainer"></div>
+
+<div id="dialog">
+    <div id="dialogBox">
+        <input
+                id="movieInput"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                placeholder=""
         />
-        <link rel="stylesheet" href="./style.css" />
-    </head>
-    <body>
-        <div id="toolbar">
-            <button id="brushBtn" title="Brush"></button>
-            <button id="eraserBtn" title="Eraser"></button>
-            <button id="posterBtn" title="Toggle Poster"></button>
-            <button id="undoBtn" title="Undo"></button>
-            <button id="clearBtn" title="Clear Drawing"></button>
-            <button id="idBtn" title="Pick Movie ID"></button>
-        </div>
+        <button id="okBtn">OK</button>
+        <button id="cancelBtn">Cancel</button>
+    </div>
+</div>
 
-        <div id="movieTitle"></div>
-        <div id="canvasContainer"></div>
-
-        <div id="dialog">
-            <div id="dialogBox">
-                <input
-                    id="movieInput"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                    placeholder=""
-                />
-                <button id="okBtn">OK</button>
-                <button id="cancelBtn">Cancel</button>
-            </div>
-        </div>
-
-        <script type="module" src="./app.js"></script>
-    </body>
+<script type="module" src="./app.js"></script>
+</body>
 </html>

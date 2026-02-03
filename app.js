@@ -23,13 +23,13 @@ const undoBtn = document.getElementById("undoBtn");
 const clearBtn = document.getElementById("clearBtn");
 const idBtn = document.getElementById("idBtn");
 
-/* ===== Inject local SVG icons ===== */
+/* ===== Inject SVG icons ===== */
 brushBtn.innerHTML = `<img src="${BrushIcon}" alt="Brush">`;
 eraserBtn.innerHTML = `<img src="${InkEraserIcon}" alt="Eraser">`;
 undoBtn.innerHTML = `<img src="${UndoIcon}" alt="Undo">`;
 clearBtn.innerHTML = `<img src="${DeleteIcon}" alt="Clear">`;
-posterBtn.innerHTML = `<img src="${FillIcon}" alt="Poster">`;
-idBtn.innerHTML = `<img src="${PaletteIcon}" alt="ID">`;
+posterBtn.innerHTML = `<img src="${FillIcon}" alt="Fill">`;
+idBtn.innerHTML = `<img src="${PaletteIcon}" alt="Palette">`;
 
 /* ===== Three.js setup ===== */
 const scene = new THREE.Scene();
@@ -38,7 +38,9 @@ const camera = new THREE.OrthographicCamera(-250, 250, 350, -350, 1, 1000);
 camera.position.z = 10;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(container.clientWidth, container.clientHeight);
+const dpr = window.devicePixelRatio || 1;
+renderer.setPixelRatio(dpr);
+renderer.setSize(container.clientWidth, container.clientHeight, false);
 renderer.domElement.style.borderRadius = "12px";
 container.appendChild(renderer.domElement);
 
@@ -51,24 +53,25 @@ const posterMaterial = new THREE.MeshBasicMaterial({
   opacity: 0.25,
 });
 const posterMesh = new THREE.Mesh(
-  new THREE.PlaneGeometry(container.clientWidth, container.clientHeight),
-  posterMaterial,
+    new THREE.PlaneGeometry(container.clientWidth, container.clientHeight),
+    posterMaterial
 );
 scene.add(posterMesh);
 posterMesh.visible = false;
 
 /* ===== Drawing Plane ===== */
 const drawCanvas = document.createElement("canvas");
-drawCanvas.width = container.clientWidth;
-drawCanvas.height = container.clientHeight;
+drawCanvas.width = container.clientWidth * dpr;
+drawCanvas.height = container.clientHeight * dpr;
 const drawCtx = drawCanvas.getContext("2d");
+drawCtx.scale(dpr, dpr);
 drawCtx.fillStyle = "white";
-drawCtx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
+drawCtx.fillRect(0, 0, container.clientWidth, container.clientHeight);
 
 const drawTexture = new THREE.CanvasTexture(drawCanvas);
 const drawMesh = new THREE.Mesh(
-  new THREE.PlaneGeometry(container.clientWidth, container.clientHeight),
-  new THREE.MeshBasicMaterial({ map: drawTexture }),
+    new THREE.PlaneGeometry(container.clientWidth, container.clientHeight),
+    new THREE.MeshBasicMaterial({ map: drawTexture })
 );
 scene.add(drawMesh);
 
@@ -76,7 +79,7 @@ scene.add(drawMesh);
 let undoStack = [];
 function saveState() {
   undoStack.push(
-    drawCtx.getImageData(0, 0, drawCanvas.width, drawCanvas.height),
+      drawCtx.getImageData(0, 0, container.clientWidth, container.clientHeight)
   );
   if (undoStack.length > 50) undoStack.shift();
 }
@@ -101,27 +104,15 @@ selectTool("brush");
 
 function getPointerPos(e) {
   const rect = renderer.domElement.getBoundingClientRect();
-  let x, y;
-  if (e.touches && e.touches.length) {
-    x = e.touches[0].clientX - rect.left;
-    y = e.touches[0].clientY - rect.top;
-  } else {
-    x = e.clientX - rect.left;
-    y = e.clientY - rect.top;
-  }
-  return [x, y];
+  let x = (e.clientX - rect.left) * (drawCanvas.width / rect.width);
+  let y = (e.clientY - rect.top) * (drawCanvas.height / rect.height);
+  return [x / dpr, y / dpr]; // scale back for 2D context
 }
 
-// prevent scrolling while drawing
-renderer.domElement.addEventListener("touchstart", (e) => e.preventDefault(), {
-  passive: false,
-});
-renderer.domElement.addEventListener("touchmove", (e) => e.preventDefault(), {
-  passive: false,
-});
-renderer.domElement.addEventListener("touchend", (e) => e.preventDefault(), {
-  passive: false,
-});
+// prevent default mobile gestures
+renderer.domElement.addEventListener("touchstart", (e) => e.preventDefault(), { passive: false });
+renderer.domElement.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
+renderer.domElement.addEventListener("touchend", (e) => e.preventDefault(), { passive: false });
 
 renderer.domElement.addEventListener("pointerdown", (e) => {
   isDrawing = true;
@@ -162,7 +153,7 @@ undoBtn.addEventListener("click", () => {
 clearBtn.addEventListener("click", () => {
   saveState();
   drawCtx.fillStyle = "white";
-  drawCtx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
+  drawCtx.fillRect(0, 0, container.clientWidth, container.clientHeight);
   drawTexture.needsUpdate = true;
 });
 
@@ -186,9 +177,7 @@ movieInput.addEventListener("keydown", (e) => {
 async function fetchMovieById(id) {
   movieTitleEl.textContent = "Loading…";
   try {
-    const res = await fetch(
-      `https://api.themoviedb.org/3/movie/${id}?api_key=${TMDB_API_KEY}&language=en-US`,
-    );
+    const res = await fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${TMDB_API_KEY}&language=en-US`);
     const data = await res.json();
     if (!data || data.success === false) {
       movieTitleEl.textContent = "";
@@ -197,7 +186,7 @@ async function fetchMovieById(id) {
       posterVisible = false;
       return alert("Movie not found");
     }
-    movieTitleEl.textContent = `${data.title} (${data.release_date?.slice(0, 4) || ""})`;
+    movieTitleEl.textContent = `${data.title} (${data.release_date?.slice(0,4)||""})`;
 
     if (!data.poster_path) {
       posterTexture = null;
