@@ -25,9 +25,14 @@ const undoBtn = document.getElementById("undoBtn");
 const clearBtn = document.getElementById("clearBtn");
 const idBtn = document.getElementById("idBtn");
 
-[brushBtn, eraserBtn, posterBtn, undoBtn, clearBtn, idBtn].forEach(btn => {
+const toolbarButtons = [brushBtn, eraserBtn, posterBtn, undoBtn, clearBtn, idBtn, okBtn, cancelBtn];
+toolbarButtons.forEach(btn => {
+  // stop pointer/touch from reaching canvas
   btn.addEventListener("pointerdown", e => e.stopPropagation());
-  btn.addEventListener("touchstart", e => e.stopPropagation());
+  btn.addEventListener("pointerup", e => e.stopPropagation());
+  btn.addEventListener("click", e => e.stopPropagation());
+  btn.addEventListener("touchstart", e => e.stopPropagation(), { passive: false });
+  btn.addEventListener("touchend", e => e.stopPropagation(), { passive: false });
 });
 
 /* Inject local SVG icons */
