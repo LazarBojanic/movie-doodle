@@ -25,6 +25,11 @@ const undoBtn = document.getElementById("undoBtn");
 const clearBtn = document.getElementById("clearBtn");
 const idBtn = document.getElementById("idBtn");
 
+[brushBtn, eraserBtn, posterBtn, undoBtn, clearBtn, idBtn].forEach(btn => {
+  btn.addEventListener("pointerdown", e => e.stopPropagation());
+  btn.addEventListener("touchstart", e => e.stopPropagation());
+});
+
 /* Inject local SVG icons */
 brushBtn.innerHTML = `<img src="${BrushIcon}" alt="Brush">`;
 eraserBtn.innerHTML = `<img src="${InkEraserIcon}" alt="Eraser">`;
