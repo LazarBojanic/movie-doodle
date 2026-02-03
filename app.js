@@ -42,7 +42,7 @@ clearBtn.innerHTML = `<img src="${DeleteIcon}" alt="Clear">`;
 posterBtn.innerHTML = `<img src="${FillIcon}" alt="Fill">`;
 idBtn.innerHTML = `<img src="${PaletteIcon}" alt="Palette">`;
 
-/* Three.js setup */
+/* --- Three.js setup --- */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xffffff);
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
@@ -70,16 +70,14 @@ let undoStack = [];
 /* Tool state */
 let currentTool = "brush";
 let isDrawing = false;
-let pointerId = null;
 let DPR = Math.max(1, window.devicePixelRatio || 1);
 
-/* Utility: get CSS size */
+/* --- Utilities --- */
 function getCssSize() {
   const rect = container.getBoundingClientRect();
   return { cssWidth: Math.max(1, Math.round(rect.width)), cssHeight: Math.max(1, Math.round(rect.height)) };
 }
 
-/* Compute brush sizes */
 function computeBrushDeviceSizes(cssW, cssH) {
   const minSide = Math.min(cssW, cssH);
   const brushCss = Math.max(1.5, Math.round(minSide / 200));
@@ -87,11 +85,10 @@ function computeBrushDeviceSizes(cssW, cssH) {
   return { brushCss, eraserCss, brushDev: Math.round(brushCss * DPR), eraserDev: Math.round(eraserCss * DPR) };
 }
 
-/* Initialize/resize draw canvas & three objects */
+/* --- Resize and setup --- */
 function resizeAll() {
   const { cssWidth, cssHeight } = getCssSize();
   DPR = Math.max(1, Math.floor(window.devicePixelRatio || 1));
-
   renderer.setPixelRatio(DPR);
   renderer.setSize(cssWidth, cssHeight, false);
 
@@ -113,28 +110,23 @@ function resizeAll() {
     backgroundMesh.geometry = new THREE.PlaneGeometry(cssWidth, cssHeight);
   }
 
-  // Poster mesh
+  // Poster plane
   if (!posterMesh) {
     posterMesh = new THREE.Mesh(new THREE.PlaneGeometry(cssWidth, cssHeight), posterMaterial);
     posterMesh.position.set(0, 0, -1);
     posterMesh.visible = false;
     scene.add(posterMesh);
-  } else {
-    posterMesh.geometry.dispose();
-    posterMesh.geometry = new THREE.PlaneGeometry(cssWidth, cssHeight);
   }
 
   // Draw canvas
   const devW = cssWidth * DPR;
   const devH = cssHeight * DPR;
-
   let old = null;
   if (drawCanvas) {
     old = document.createElement("canvas");
     old.width = drawCanvas.width;
     old.height = drawCanvas.height;
-    const octx = old.getContext("2d");
-    octx.drawImage(drawCanvas, 0, 0);
+    old.getContext("2d").drawImage(drawCanvas, 0, 0);
   }
 
   drawCanvas = document.createElement("canvas");
@@ -166,19 +158,21 @@ function resizeAll() {
   }
 
   drawTexture.needsUpdate = true;
-  if (posterTexture) posterTexture.needsUpdate = true;
+
+  // Resize poster plane if already loaded
+  if (posterTexture) setPosterTexture(posterTexture.image);
 }
 
-/* initial sizing */
+/* --- Initial sizing and resize handlers --- */
 resizeAll();
 window.addEventListener("resize", () => setTimeout(resizeAll, 120));
 window.addEventListener("orientationchange", () => setTimeout(resizeAll, 200));
 
-/* render loop */
+/* --- Render loop --- */
 function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
 animate();
 
-/* Pointer helpers */
+/* --- Pointer helpers --- */
 function clientToDevice(e) {
   const rect = renderer.domElement.getBoundingClientRect();
   const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
@@ -189,10 +183,12 @@ function clientToDevice(e) {
   const devY = Math.round(cssY * (drawCanvas.height / rect.height));
   return [devX, devY];
 }
+
 function getLineWidths() {
   const { width: cssW, height: cssH } = renderer.domElement.getBoundingClientRect();
   return computeBrushDeviceSizes(cssW, cssH);
 }
+
 function pushUndo() {
   try {
     const data = drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height);
@@ -201,12 +197,9 @@ function pushUndo() {
   } catch(e){ console.warn("pushUndo failed", e); }
 }
 
-/* Drawing */
+/* --- Drawing --- */
 function beginStroke(e) {
-  if (e.cancelable) e.preventDefault();
-  if (e.pointerId && renderer.domElement.setPointerCapture) {
-    try{ renderer.domElement.setPointerCapture(e.pointerId); } catch(_) {}
-  }
+  if(e.cancelable) e.preventDefault();
   pushUndo();
   isDrawing = true;
   const [devX, devY] = clientToDevice(e);
@@ -222,21 +215,10 @@ function beginStroke(e) {
   drawCtx.moveTo(devX, devY);
   drawTexture.needsUpdate = true;
 }
-function moveStroke(e) {
-  if(!isDrawing) return;
-  if(e.cancelable) e.preventDefault();
-  const [devX, devY] = clientToDevice(e);
-  drawCtx.lineTo(devX, devY);
-  drawCtx.stroke();
-  drawTexture.needsUpdate = true;
-}
-function endStroke(e) {
-  if(e && e.cancelable) e.preventDefault();
-  isDrawing=false;
-  drawCtx.globalCompositeOperation="source-over";
-}
+function moveStroke(e) { if(!isDrawing) return; if(e.cancelable)e.preventDefault(); const [devX, devY]=clientToDevice(e); drawCtx.lineTo(devX, devY); drawCtx.stroke(); drawTexture.needsUpdate=true; }
+function endStroke(e) { if(e && e.cancelable) e.preventDefault(); isDrawing=false; drawCtx.globalCompositeOperation="source-over"; }
 
-/* Attach pointer/touch */
+/* --- Attach pointer/touch --- */
 renderer.domElement.style.touchAction="none";
 renderer.domElement.addEventListener("pointerdown", beginStroke, {passive:false});
 renderer.domElement.addEventListener("pointermove", moveStroke, {passive:false});
@@ -246,7 +228,7 @@ renderer.domElement.addEventListener("touchstart", e=>{ e.preventDefault(); begi
 renderer.domElement.addEventListener("touchmove", e=>{ e.preventDefault(); moveStroke(e); }, {passive:false});
 window.addEventListener("touchend", e=>{ e.preventDefault(); endStroke(e); }, {passive:false});
 
-/* Tool selection */
+/* --- Tool selection --- */
 function selectTool(tool) {
   currentTool=tool;
   brushBtn.classList.toggle("active", tool==="brush");
@@ -256,7 +238,7 @@ selectTool("brush");
 brushBtn.addEventListener("click", ()=>selectTool("brush"));
 eraserBtn.addEventListener("click", ()=>selectTool("eraser"));
 
-/* Undo/Clear */
+/* --- Undo/Clear --- */
 undoBtn.addEventListener("click", ()=>{
   if(!undoStack.length) return;
   drawCtx.putImageData(undoStack.pop(),0,0);
@@ -266,57 +248,47 @@ clearBtn.addEventListener("click", ()=>{
   pushUndo(); drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height); drawTexture.needsUpdate=true;
 });
 
-/* Poster toggle */
+/* --- Poster toggle --- */
 posterBtn.addEventListener("click", ()=>{
   if(!posterTexture) return alert("No poster loaded");
   posterMesh.visible = !posterMesh.visible;
 });
 
-/* ID dialog */
+/* --- ID dialog --- */
 idBtn.addEventListener("click", ()=>{ dialog.style.display="flex"; movieInput.value=""; movieInput.focus(); });
 cancelBtn.addEventListener("click", ()=>{ dialog.style.display="none"; });
 okBtn.addEventListener("click", ()=>{ dialog.style.display="none"; fetchMovieById(movieInput.value.trim()); });
 movieInput.addEventListener("keydown", e=>{ if(e.key==="Enter") okBtn.click(); if(e.key==="Escape") dialog.style.display="none"; });
 
-/* ===== Poster scaling helper ===== */
+/* --- Poster scaling helper --- */
 function setPosterTexture(img) {
-  // Use device-pixel size, not CSS size
-  const devW = drawCanvas.width;
-  const devH = drawCanvas.height;
-  const tempCanvas = document.createElement("canvas");
-  tempCanvas.width = devW;
-  tempCanvas.height = devH;
-  const ctx = tempCanvas.getContext("2d");
-
-  // Compute aspect ratios
-  const canvasAspect = devW / devH;
-  const imgAspect = img.width / img.height;
-
-  let drawW, drawH, offsetX = 0, offsetY = 0;
-
-  if (imgAspect > canvasAspect) {
-    // Poster wider than canvas: scale width to canvas, crop sides
-    drawW = devW;
-    drawH = devW / imgAspect;
-    offsetY = (devH - drawH) / 2;
-  } else {
-    // Poster taller than canvas: scale height to canvas, crop top/bottom
-    drawH = devH;
-    drawW = devH * imgAspect;
-    offsetX = (devW - drawW) / 2;
-  }
-
-  ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
-
-  if (!posterTexture) posterTexture = new THREE.Texture(tempCanvas);
-  else posterTexture.image = tempCanvas;
+  if (!posterTexture) posterTexture = new THREE.Texture(img);
+  else posterTexture.image = img;
   posterTexture.needsUpdate = true;
 
-  posterMesh.material.map = posterTexture;
-  posterMesh.visible = posterMesh.visible || true;
+  const { cssWidth, cssHeight } = getCssSize();
+  const canvasAspect = cssWidth / cssHeight;
+  const imgAspect = img.width / img.height;
+
+  let planeW, planeH;
+  if (imgAspect > canvasAspect) {
+    planeW = cssWidth;
+    planeH = cssWidth / imgAspect;
+  } else {
+    planeH = cssHeight;
+    planeW = cssHeight * imgAspect;
+  }
+
+  if (posterMesh) {
+    posterMesh.geometry.dispose();
+    posterMesh.geometry = new THREE.PlaneGeometry(planeW, planeH);
+    posterMesh.material.map = posterTexture;
+    posterMesh.material.needsUpdate = true;
+    posterMesh.visible = true;
+  }
 }
 
-/* TMDb fetch */
+/* --- TMDb fetch --- */
 async function fetchMovieById(id){
   if(!id) return;
   movieTitleEl.textContent="Loading…";
@@ -334,5 +306,5 @@ async function fetchMovieById(id){
   } catch(err){ console.error(err); movieTitleEl.textContent=""; alert("Error fetching movie"); }
 }
 
-/* Expose for debugging */
+/* --- Expose for debugging --- */
 window.__movieSketch={ renderer, scene, camera, drawCanvas, drawCtx, drawTexture, posterMesh };
