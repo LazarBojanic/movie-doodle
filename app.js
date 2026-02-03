@@ -1,4 +1,10 @@
 import * as THREE from "three";
+import BrushIcon from "@material-symbols/svg-400/outlined/brush.svg";
+import InkEraserIcon from "@material-symbols/svg-400/outlined/ink_eraser.svg";
+import UndoIcon from "@material-symbols/svg-400/outlined/undo.svg";
+import DeleteIcon from "@material-symbols/svg-400/outlined/delete.svg";
+import FillIcon from "@material-symbols/svg-400/outlined/format_color_fill.svg";
+import PaletteIcon from "@material-symbols/svg-400/outlined/palette.svg";
 
 const API_KEY = "eaca5351";
 
@@ -15,6 +21,14 @@ const posterBtn = document.getElementById("posterBtn");
 const undoBtn = document.getElementById("undoBtn");
 const clearBtn = document.getElementById("clearBtn");
 const idBtn = document.getElementById("idBtn");
+
+/* ===== Inject local SVG icons ===== */
+brushBtn.innerHTML = `<img src="${BrushIcon}" alt="Brush">`;
+eraserBtn.innerHTML = `<img src="${InkEraserIcon}" alt="Eraser">`;
+undoBtn.innerHTML = `<img src="${UndoIcon}" alt="Undo">`;
+clearBtn.innerHTML = `<img src="${DeleteIcon}" alt="Clear">`;
+posterBtn.innerHTML = `<img src="${FillIcon}" alt="Poster">`;
+idBtn.innerHTML = `<img src="${PaletteIcon}" alt="ID">`;
 
 /* ===== Three.js setup ===== */
 const scene = new THREE.Scene();
@@ -73,9 +87,17 @@ function animate() {
 }
 animate();
 
-/* ===== Drawing ===== */
+/* ===== Drawing logic ===== */
 let isDrawing = false;
 let currentTool = "brush"; // brush or eraser
+
+function selectTool(tool) {
+  currentTool = tool;
+  brushBtn.classList.toggle("active", tool === "brush");
+  eraserBtn.classList.toggle("active", tool === "eraser");
+}
+selectTool("brush"); // default
+
 renderer.domElement.addEventListener("pointerdown", (e) => {
   isDrawing = true;
   saveState();
@@ -96,30 +118,12 @@ renderer.domElement.addEventListener("pointermove", (e) => {
 renderer.domElement.addEventListener("pointerup", () => (isDrawing = false));
 renderer.domElement.addEventListener("pointerleave", () => (isDrawing = false));
 
-/* ===== Tool buttons ===== */
-function selectTool(tool) {
-  currentTool = tool;
-  if (tool === "brush") {
-    brushBtn.classList.add("active");
-    eraserBtn.classList.remove("active");
-  } else {
-    eraserBtn.classList.add("active");
-    brushBtn.classList.remove("active");
-  }
-}
-
-// Default brush selected
-selectTool("brush");
-
 brushBtn.addEventListener("click", () => selectTool("brush"));
 eraserBtn.addEventListener("click", () => selectTool("eraser"));
 
 /* ===== Other UI buttons ===== */
 posterBtn.addEventListener("click", () => {
-  if (!posterTexture) {
-    alert("No poster loaded");
-    return;
-  }
+  if (!posterTexture) return alert("No poster loaded");
   posterVisible = !posterVisible;
   posterMesh.visible = posterVisible;
 });
@@ -145,9 +149,7 @@ idBtn.addEventListener("click", () => {
   movieInput.value = "";
   movieInput.focus();
 });
-cancelBtn.addEventListener("click", () => {
-  dialog.style.display = "none";
-});
+cancelBtn.addEventListener("click", () => (dialog.style.display = "none"));
 okBtn.addEventListener("click", () => {
   dialog.style.display = "none";
   fetchMovieById(movieInput.value.trim());
@@ -172,8 +174,7 @@ async function fetchMovieById(id) {
     const data = await res.json();
     if (!data || data.Response === "False") {
       movieTitleEl.textContent = "";
-      alert("Movie not found");
-      return;
+      return alert("Movie not found");
     }
     movieTitleEl.textContent = `${data.Title} (${data.Year || ""})`;
     if (!data.Poster || data.Poster === "N/A") {
