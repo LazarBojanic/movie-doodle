@@ -271,22 +271,32 @@ function setPosterTexture(img) {
   const imgAspect = img.width / img.height;
 
   let planeW, planeH;
+
   if (imgAspect > canvasAspect) {
+    // Image wider than canvas
     planeW = cssWidth;
     planeH = cssWidth / imgAspect;
   } else {
+    // Image taller than canvas
     planeH = cssHeight;
     planeW = cssHeight * imgAspect;
   }
 
-  if (posterMesh) {
+  // Centered mesh
+  if (!posterMesh) {
+    posterMesh = new THREE.Mesh(new THREE.PlaneGeometry(planeW, planeH), posterMaterial);
+    posterMesh.position.set(0, 0, -1);
+    scene.add(posterMesh);
+  } else {
     posterMesh.geometry.dispose();
     posterMesh.geometry = new THREE.PlaneGeometry(planeW, planeH);
-    posterMesh.material.map = posterTexture;
-    posterMesh.material.needsUpdate = true;
-    posterMesh.visible = true;
   }
+
+  posterMesh.material.map = posterTexture;
+  posterMesh.material.needsUpdate = true;
+  posterMesh.visible = true;
 }
+
 
 /* --- TMDb fetch --- */
 async function fetchMovieById(id){
