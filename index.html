@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Movie Sketch Pad</title>
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <link rel="stylesheet" href="./style.css" />
+    </head>
+    <body>
+        <div id="toolbar">
+            <button id="idBtn" title="Pick Color">
+                <span class="material-icons">palette</span>
+            </button>
+            <button id="posterBtn" title="Toggle Poster">
+                <span class="material-icons">format_color_fill</span>
+            </button>
+            <button id="clearBtn" title="Clear Drawing">
+                <span class="material-icons">delete</span>
+            </button>
+        </div>
+
+        <div id="movieTitle"></div>
+        <div id="canvasContainer"></div>
+
+        <div id="dialog">
+            <div id="dialogBox">
+                <input
+                    id="movieInput"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="82971"
+                />
+                <button id="okBtn">OK</button>
+                <button id="cancelBtn">Cancel</button>
+            </div>
+        </div>
+
+        <script type="module" src="./app.js"></script>
+    </body>
+</html>
