@@ -280,39 +280,37 @@ movieInput.addEventListener("keydown", e=>{ if(e.key==="Enter") okBtn.click(); i
 
 /* ===== Poster scaling helper ===== */
 function setPosterTexture(img) {
-  if (!posterMesh) return;
-
   const { cssWidth, cssHeight } = getCssSize();
+  const tempCanvas = document.createElement("canvas");
+  tempCanvas.width = cssWidth;
+  tempCanvas.height = cssHeight;
+  const ctx = tempCanvas.getContext("2d");
+
+  // Compute aspect ratios
   const canvasAspect = cssWidth / cssHeight;
   const imgAspect = img.width / img.height;
 
-  // Set poster plane to match canvas exactly
-  posterMesh.geometry.dispose();
-  posterMesh.geometry = new THREE.PlaneGeometry(cssWidth, cssHeight);
-
-  // Create/update texture
-  if (!posterTexture) posterTexture = new THREE.Texture(img);
-  else posterTexture.image = img;
-  posterTexture.needsUpdate = true;
-
-  // Adjust UV scaling to preserve image aspect ratio inside canvas
-  let repeatX = 1, repeatY = 1;
-  let offsetX = 0, offsetY = 0;
+  let drawW, drawH, offsetX = 0, offsetY = 0;
 
   if (imgAspect > canvasAspect) {
-    // image wider than canvas: scale width, crop sides
-    repeatX = canvasAspect / imgAspect;
-    offsetX = (1 - repeatX) / 2;
+    // Poster wider than canvas: scale width to canvas, crop sides
+    drawW = cssWidth;
+    drawH = cssWidth / imgAspect;
+    offsetY = (cssHeight - drawH) / 2;
   } else {
-    // image taller than canvas: scale height, crop top/bottom
-    repeatY = imgAspect / canvasAspect;
-    offsetY = (1 - repeatY) / 2;
+    // Poster taller than canvas: scale height to canvas, crop top/bottom
+    drawH = cssHeight;
+    drawW = cssHeight * imgAspect;
+    offsetX = (cssWidth - drawW) / 2;
   }
 
-  posterTexture.wrapS = THREE.ClampToEdgeWrapping;
-  posterTexture.wrapT = THREE.ClampToEdgeWrapping;
-  posterTexture.repeat.set(repeatX, repeatY);
-  posterTexture.offset.set(offsetX, offsetY);
+  // Draw poster onto temporary canvas
+  ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
+
+  // Use this canvas as Three.js texture
+  if (!posterTexture) posterTexture = new THREE.Texture(tempCanvas);
+  else posterTexture.image = tempCanvas;
+  posterTexture.needsUpdate = true;
 
   posterMesh.material.map = posterTexture;
   posterMesh.visible = posterMesh.visible || false;
