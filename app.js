@@ -27,7 +27,6 @@ const idBtn = document.getElementById("idBtn");
 
 const toolbarButtons = [brushBtn, eraserBtn, posterBtn, undoBtn, clearBtn, idBtn, okBtn, cancelBtn];
 toolbarButtons.forEach(btn => {
-  // stop pointer/touch from reaching canvas
   btn.addEventListener("pointerdown", e => e.stopPropagation());
   btn.addEventListener("pointerup", e => e.stopPropagation());
   btn.addEventListener("click", e => e.stopPropagation());
@@ -35,7 +34,7 @@ toolbarButtons.forEach(btn => {
   btn.addEventListener("touchend", e => e.stopPropagation(), { passive: false });
 });
 
-/* Inject local SVG icons */
+/* Inject SVG icons */
 brushBtn.innerHTML = `<img src="${BrushIcon}" alt="Brush">`;
 eraserBtn.innerHTML = `<img src="${InkEraserIcon}" alt="Eraser">`;
 undoBtn.innerHTML = `<img src="${UndoIcon}" alt="Undo">`;
@@ -46,73 +45,63 @@ idBtn.innerHTML = `<img src="${PaletteIcon}" alt="Palette">`;
 /* Three.js setup */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xffffff);
-
-/* We'll use an orthographic camera sized to CSS pixels */
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
 camera.position.z = 10;
 
-/* Renderer */
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.domElement.style.borderRadius = "12px";
 container.appendChild(renderer.domElement);
 
-/* Poster and background materials */
+/* Poster & background planes */
 const posterMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25 });
 let posterTexture = null;
 let posterMesh = null;
 
-/* White background plane (always visible under poster/drawing) */
 let backgroundMesh = null;
 
-/* Draw canvas (offscreen; used as texture) and related vars */
+/* Draw canvas */
 let drawCanvas = null;
 let drawCtx = null;
 let drawTexture = null;
 
-/* Undo stack (stores ImageData in device pixels) */
+/* Undo stack */
 let undoStack = [];
 
 /* Tool state */
-let currentTool = "brush"; // 'brush' or 'eraser'
+let currentTool = "brush";
 let isDrawing = false;
 let pointerId = null;
-
-/* device pixel ratio */
 let DPR = Math.max(1, window.devicePixelRatio || 1);
 
-/* Utility: get CSS size of container */
+/* Utility: get CSS size */
 function getCssSize() {
   const rect = container.getBoundingClientRect();
   return { cssWidth: Math.max(1, Math.round(rect.width)), cssHeight: Math.max(1, Math.round(rect.height)) };
 }
 
-/* Compute brush sizes (CSS-based) then convert to device pixels */
+/* Compute brush sizes */
 function computeBrushDeviceSizes(cssW, cssH) {
-  // pick brush size relative to smallest side of the canvas (CSS px)
   const minSide = Math.min(cssW, cssH);
-  // tune these factors as needed
-  const brushCss = Math.max(1.5, Math.round(minSide / 200)); // ~2-3 on typical sizes
+  const brushCss = Math.max(1.5, Math.round(minSide / 200));
   const eraserCss = Math.max(8, Math.round(brushCss * 6));
   return { brushCss, eraserCss, brushDev: Math.round(brushCss * DPR), eraserDev: Math.round(eraserCss * DPR) };
 }
 
-/* Initialize or resize draw canvas and three objects */
+/* Initialize/resize draw canvas & three objects */
 function resizeAll() {
   const { cssWidth, cssHeight } = getCssSize();
   DPR = Math.max(1, Math.floor(window.devicePixelRatio || 1));
 
-  // renderer: keep CSS size but set pixel ratio so renderer's drawing is crisp
   renderer.setPixelRatio(DPR);
   renderer.setSize(cssWidth, cssHeight, false);
 
-  // camera: set projection to CSS pixel units
   camera.left = -cssWidth / 2;
   camera.right = cssWidth / 2;
   camera.top = cssHeight / 2;
   camera.bottom = -cssHeight / 2;
   camera.updateProjectionMatrix();
 
-  // --- background plane (white) ---
+  // Background plane
   if (!backgroundMesh) {
     const geo = new THREE.PlaneGeometry(cssWidth, cssHeight);
     const mat = new THREE.MeshBasicMaterial({ color: 0xffffff });
@@ -124,7 +113,7 @@ function resizeAll() {
     backgroundMesh.geometry = new THREE.PlaneGeometry(cssWidth, cssHeight);
   }
 
-  // --- poster mesh ---
+  // Poster mesh
   if (!posterMesh) {
     posterMesh = new THREE.Mesh(new THREE.PlaneGeometry(cssWidth, cssHeight), posterMaterial);
     posterMesh.position.set(0, 0, -1);
@@ -135,11 +124,10 @@ function resizeAll() {
     posterMesh.geometry = new THREE.PlaneGeometry(cssWidth, cssHeight);
   }
 
-  // --- drawing canvas (device pixels) ---
+  // Draw canvas
   const devW = cssWidth * DPR;
   const devH = cssHeight * DPR;
 
-  // preserve old drawing if exists
   let old = null;
   if (drawCanvas) {
     old = document.createElement("canvas");
@@ -154,31 +142,14 @@ function resizeAll() {
   drawCanvas.height = devH;
   drawCanvas.style.width = cssWidth + "px";
   drawCanvas.style.height = cssHeight + "px";
-
   drawCtx = drawCanvas.getContext("2d", { alpha: true });
-  // We keep the draw canvas transparent so poster shows through.
-  // If we want to start with some background we can fill transparent.
 
-  if (old) {
-    // scale old content into new canvas
-    drawCtx.save();
-    drawCtx.clearRect(0, 0, devW, devH);
-    drawCtx.drawImage(old, 0, 0, old.width, old.height, 0, 0, devW, devH);
-    drawCtx.restore();
-  } else {
-    drawCtx.clearRect(0, 0, devW, devH);
-  }
+  if (old) drawCtx.drawImage(old, 0, 0, old.width, old.height, 0, 0, devW, devH);
+  else drawCtx.clearRect(0, 0, devW, devH);
 
-  // --- texture for draw canvas ---
-  if (!drawTexture) {
-    drawTexture = new THREE.CanvasTexture(drawCanvas);
-    drawTexture.minFilter = THREE.LinearFilter;
-  } else {
-    drawTexture.image = drawCanvas;
-    drawTexture.needsUpdate = true;
-  }
+  if (!drawTexture) drawTexture = new THREE.CanvasTexture(drawCanvas);
+  else { drawTexture.image = drawCanvas; drawTexture.needsUpdate = true; }
 
-  // --- draw mesh ---
   if (!scene.getObjectByName("drawMesh")) {
     const drawMat = new THREE.MeshBasicMaterial({ map: drawTexture, transparent: true });
     const drawGeo = new THREE.PlaneGeometry(cssWidth, cssHeight);
@@ -194,30 +165,20 @@ function resizeAll() {
     dm.material.transparent = true;
   }
 
-  // force repaint
   drawTexture.needsUpdate = true;
-  if (posterTexture) { posterTexture.needsUpdate = true; posterMesh.material.map = posterTexture; }
+  if (posterTexture) posterTexture.needsUpdate = true;
 }
 
 /* initial sizing */
 resizeAll();
-
-/* handle resize */
-let resizeTimer = null;
-window.addEventListener("resize", () => {
-  clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(resizeAll, 120);
-});
+window.addEventListener("resize", () => setTimeout(resizeAll, 120));
 window.addEventListener("orientationchange", () => setTimeout(resizeAll, 200));
 
 /* render loop */
-function animate() {
-  requestAnimationFrame(animate);
-  renderer.render(scene, camera);
-}
+function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); }
 animate();
 
-/* helper: convert client coordinates -> device-pixel coordinates on drawCanvas */
+/* Pointer helpers */
 function clientToDevice(e) {
   const rect = renderer.domElement.getBoundingClientRect();
   const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
@@ -228,172 +189,152 @@ function clientToDevice(e) {
   const devY = Math.round(cssY * (drawCanvas.height / rect.height));
   return [devX, devY];
 }
-
-/* compute device-pixel line widths */
 function getLineWidths() {
-  const rect = renderer.domElement.getBoundingClientRect();
-  const cssW = rect.width, cssH = rect.height;
-  const { brushCss, eraserCss, brushDev, eraserDev } = computeBrushDeviceSizes(cssW, cssH);
-  return { brushCss, eraserCss, brushDev, eraserDev };
+  const { width: cssW, height: cssH } = renderer.domElement.getBoundingClientRect();
+  return computeBrushDeviceSizes(cssW, cssH);
 }
-
-/* Save undo state — ImageData is in device pixels */
 function pushUndo() {
   try {
-    const data = drawCtx.getImageData(0, 0, drawCanvas.width, drawCanvas.height);
+    const data = drawCtx.getImageData(0,0,drawCanvas.width,drawCanvas.height);
     undoStack.push(data);
-    if (undoStack.length > 60) undoStack.shift();
-  } catch (err) {
-    console.warn("pushUndo failed", err);
-  }
+    if (undoStack.length>60) undoStack.shift();
+  } catch(e){ console.warn("pushUndo failed", e); }
 }
 
-/* Drawing state */
-let activePointerId = null;
-
+/* Drawing */
 function beginStroke(e) {
   if (e.cancelable) e.preventDefault();
-  // pointer capture (for pointer events)
   if (e.pointerId && renderer.domElement.setPointerCapture) {
-    try { renderer.domElement.setPointerCapture(e.pointerId); } catch (_) {}
-    activePointerId = e.pointerId;
+    try{ renderer.domElement.setPointerCapture(e.pointerId); } catch(_) {}
   }
   pushUndo();
   isDrawing = true;
   const [devX, devY] = clientToDevice(e);
   const widths = getLineWidths();
   drawCtx.beginPath();
-  // use device-pixel values directly
-  const lw = (currentTool === "brush") ? widths.brushDev : widths.eraserDev;
-  drawCtx.lineWidth = lw;
+  drawCtx.lineWidth = (currentTool==="brush") ? widths.brushDev : widths.eraserDev;
   drawCtx.lineCap = "round";
-  if (currentTool === "eraser") {
-    // erase by making destination transparent
-    drawCtx.globalCompositeOperation = "destination-out";
-    drawCtx.strokeStyle = "rgba(0,0,0,1)";
+  if (currentTool==="eraser") {
+    drawCtx.globalCompositeOperation="destination-out"; drawCtx.strokeStyle="rgba(0,0,0,1)";
   } else {
-    drawCtx.globalCompositeOperation = "source-over";
-    drawCtx.strokeStyle = "black";
+    drawCtx.globalCompositeOperation="source-over"; drawCtx.strokeStyle="black";
   }
   drawCtx.moveTo(devX, devY);
   drawTexture.needsUpdate = true;
 }
-
 function moveStroke(e) {
-  if (!isDrawing) return;
-  if (e.cancelable) e.preventDefault();
+  if(!isDrawing) return;
+  if(e.cancelable) e.preventDefault();
   const [devX, devY] = clientToDevice(e);
   drawCtx.lineTo(devX, devY);
   drawCtx.stroke();
   drawTexture.needsUpdate = true;
 }
-
 function endStroke(e) {
-  if (e && e.cancelable) e.preventDefault();
-  isDrawing = false;
-  if (e && e.pointerId && renderer.domElement.releasePointerCapture) {
-    try { renderer.domElement.releasePointerCapture(e.pointerId); } catch(_) {}
-    activePointerId = null;
-  }
-  // reset composite to default
-  drawCtx.globalCompositeOperation = "source-over";
+  if(e && e.cancelable) e.preventDefault();
+  isDrawing=false;
+  drawCtx.globalCompositeOperation="source-over";
 }
 
-/* Attach input handlers: use pointer events when available; also support touch fallback */
-renderer.domElement.style.touchAction = "none";
-renderer.domElement.addEventListener("pointerdown", beginStroke, { passive: false });
-renderer.domElement.addEventListener("pointermove", moveStroke, { passive: false });
-window.addEventListener("pointerup", endStroke, { passive: false });
-window.addEventListener("pointercancel", endStroke, { passive: false });
+/* Attach pointer/touch */
+renderer.domElement.style.touchAction="none";
+renderer.domElement.addEventListener("pointerdown", beginStroke, {passive:false});
+renderer.domElement.addEventListener("pointermove", moveStroke, {passive:false});
+window.addEventListener("pointerup", endStroke, {passive:false});
+window.addEventListener("pointercancel", endStroke, {passive:false});
+renderer.domElement.addEventListener("touchstart", e=>{ e.preventDefault(); beginStroke(e); }, {passive:false});
+renderer.domElement.addEventListener("touchmove", e=>{ e.preventDefault(); moveStroke(e); }, {passive:false});
+window.addEventListener("touchend", e=>{ e.preventDefault(); endStroke(e); }, {passive:false});
 
-// Fallback: touch events mapped to same handlers (some older browsers)
-renderer.domElement.addEventListener("touchstart", (e)=>{ e.preventDefault(); beginStroke(e); }, { passive: false });
-renderer.domElement.addEventListener("touchmove", (e)=>{ e.preventDefault(); moveStroke(e); }, { passive: false });
-window.addEventListener("touchend", (e)=>{ e.preventDefault(); endStroke(e); }, { passive: false });
-
-/* Tool selection UI */
+/* Tool selection */
 function selectTool(tool) {
-  currentTool = tool;
-  brushBtn.classList.toggle("active", tool === "brush");
-  eraserBtn.classList.toggle("active", tool === "eraser");
+  currentTool=tool;
+  brushBtn.classList.toggle("active", tool==="brush");
+  eraserBtn.classList.toggle("active", tool==="eraser");
 }
 selectTool("brush");
+brushBtn.addEventListener("click", ()=>selectTool("brush"));
+eraserBtn.addEventListener("click", ()=>selectTool("eraser"));
 
-brushBtn.addEventListener("click", ()=> selectTool("brush"));
-eraserBtn.addEventListener("click", ()=> selectTool("eraser"));
-
-/* Undo / Clear */
+/* Undo/Clear */
 undoBtn.addEventListener("click", ()=>{
-  if (!undoStack.length) return;
-  const img = undoStack.pop();
-  try {
-    drawCtx.putImageData(img, 0, 0);
-    drawTexture.needsUpdate = true;
-  } catch (err) {
-    console.warn("undo failed:", err);
-  }
+  if(!undoStack.length) return;
+  drawCtx.putImageData(undoStack.pop(),0,0);
+  drawTexture.needsUpdate=true;
 });
-
 clearBtn.addEventListener("click", ()=>{
-  pushUndo();
-  drawCtx.clearRect(0,0,drawCanvas.width, drawCanvas.height); // transparent clear
-  drawTexture.needsUpdate = true;
+  pushUndo(); drawCtx.clearRect(0,0,drawCanvas.width,drawCanvas.height); drawTexture.needsUpdate=true;
 });
 
-/* Poster toggle — posterTexture used on posterMesh behind draw mesh */
+/* Poster toggle */
 posterBtn.addEventListener("click", ()=>{
-  if (!posterTexture) return alert("No poster loaded");
+  if(!posterTexture) return alert("No poster loaded");
   posterMesh.visible = !posterMesh.visible;
 });
 
-/* ID dialog handlers */
-idBtn.addEventListener("click", ()=> { dialog.style.display = "flex"; movieInput.value = ""; movieInput.focus(); });
-cancelBtn.addEventListener("click", ()=> { dialog.style.display = "none"; });
-okBtn.addEventListener("click", ()=> { dialog.style.display = "none"; fetchMovieById(movieInput.value.trim()); });
-movieInput.addEventListener("keydown", (e)=> { if (e.key === "Enter") okBtn.click(); if (e.key === "Escape") dialog.style.display = "none"; });
+/* ID dialog */
+idBtn.addEventListener("click", ()=>{ dialog.style.display="flex"; movieInput.value=""; movieInput.focus(); });
+cancelBtn.addEventListener("click", ()=>{ dialog.style.display="none"; });
+okBtn.addEventListener("click", ()=>{ dialog.style.display="none"; fetchMovieById(movieInput.value.trim()); });
+movieInput.addEventListener("keydown", e=>{ if(e.key==="Enter") okBtn.click(); if(e.key==="Escape") dialog.style.display="none"; });
 
-/* TMDb fetch — sets posterTexture and keeps posterMesh visible flag as toggled previously */
-async function fetchMovieById(id) {
-  if (!id) return;
-  movieTitleEl.textContent = "Loading…";
-  try {
-    const res = await fetch(`https://api.themoviedb.org/3/movie/${encodeURIComponent(id)}?api_key=${encodeURIComponent(TMDB_API_KEY)}&language=en-US`);
-    const data = await res.json();
-    if (!data || data.success === false) {
-      movieTitleEl.textContent = "";
-      posterTexture = null;
-      if (posterMesh) posterMesh.visible = false;
-      return alert("Movie not found");
-    }
-    movieTitleEl.textContent = `${data.title} (${(data.release_date||"").slice(0,4)})`;
-    if (!data.poster_path) {
-      posterTexture = null;
-      if (posterMesh) posterMesh.visible = false;
-      return;
-    }
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = TMDB_IMAGE_BASE + data.poster_path;
-    img.onload = () => {
-      // create or update posterTexture
-      if (!posterTexture) posterTexture = new THREE.Texture(img);
-      else posterTexture.image = img;
-      posterTexture.needsUpdate = true;
-      posterMesh.material.map = posterTexture;
-      // keep visibility state; user toggles the poster button to show/hide
-      posterMesh.visible = posterMesh.visible || false;
-    };
-    img.onerror = () => {
-      posterTexture = null;
-      if (posterMesh) posterMesh.visible = false;
-      alert("Failed to load poster");
-    };
-  } catch (err) {
-    console.error(err);
-    movieTitleEl.textContent = "";
-    alert("Error fetching movie");
+/* ===== Poster scaling helper ===== */
+function setPosterTexture(img) {
+  if (!posterMesh) return;
+
+  const { cssWidth, cssHeight } = getCssSize();
+  const canvasAspect = cssWidth / cssHeight;
+  const imgAspect = img.width / img.height;
+
+  // Set poster plane to match canvas exactly
+  posterMesh.geometry.dispose();
+  posterMesh.geometry = new THREE.PlaneGeometry(cssWidth, cssHeight);
+
+  // Create/update texture
+  if (!posterTexture) posterTexture = new THREE.Texture(img);
+  else posterTexture.image = img;
+  posterTexture.needsUpdate = true;
+
+  // Adjust UV scaling to preserve image aspect ratio inside canvas
+  let repeatX = 1, repeatY = 1;
+  let offsetX = 0, offsetY = 0;
+
+  if (imgAspect > canvasAspect) {
+    // image wider than canvas: scale width, crop sides
+    repeatX = canvasAspect / imgAspect;
+    offsetX = (1 - repeatX) / 2;
+  } else {
+    // image taller than canvas: scale height, crop top/bottom
+    repeatY = imgAspect / canvasAspect;
+    offsetY = (1 - repeatY) / 2;
   }
+
+  posterTexture.wrapS = THREE.ClampToEdgeWrapping;
+  posterTexture.wrapT = THREE.ClampToEdgeWrapping;
+  posterTexture.repeat.set(repeatX, repeatY);
+  posterTexture.offset.set(offsetX, offsetY);
+
+  posterMesh.material.map = posterTexture;
+  posterMesh.visible = posterMesh.visible || false;
 }
 
-/* Expose internals for debugging if needed */
-window.__movieSketch = { renderer, scene, camera, drawCanvas, drawCtx, drawTexture, posterMesh };
+/* TMDb fetch */
+async function fetchMovieById(id){
+  if(!id) return;
+  movieTitleEl.textContent="Loading…";
+  try{
+    const res = await fetch(`https://api.themoviedb.org/3/movie/${encodeURIComponent(id)}?api_key=${encodeURIComponent(TMDB_API_KEY)}&language=en-US`);
+    const data = await res.json();
+    if(!data || data.success===false){ movieTitleEl.textContent=""; posterTexture=null; if(posterMesh) posterMesh.visible=false; return alert("Movie not found"); }
+    movieTitleEl.textContent=`${data.title} (${(data.release_date||"").slice(0,4)})`;
+    if(!data.poster_path){ posterTexture=null; if(posterMesh) posterMesh.visible=false; return; }
+    const img = new Image();
+    img.crossOrigin="anonymous";
+    img.src = TMDB_IMAGE_BASE+data.poster_path;
+    img.onload=()=>setPosterTexture(img);
+    img.onerror=()=>{ posterTexture=null; if(posterMesh) posterMesh.visible=false; alert("Failed to load poster"); };
+  } catch(err){ console.error(err); movieTitleEl.textContent=""; alert("Error fetching movie"); }
+}
+
+/* Expose for debugging */
+window.__movieSketch={ renderer, scene, camera, drawCanvas, drawCtx, drawTexture, posterMesh };
